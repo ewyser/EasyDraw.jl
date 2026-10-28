@@ -11,10 +11,10 @@ zone drawn later overrides the ones below it.
 
 ## Install
 
-EasyDraw is not registered yet. It lives in the ElastoPlasm.jl repository, in `lib/EasyDraw`:
+EasyDraw is not registered yet:
 
 ```julia
-] add https://github.com/ewyser/ElastoPlasm.jl:lib/EasyDraw
+] add https://github.com/ewyser/EasyDraw.jl
 ```
 
 This installs the window too (Qt Quick, through QML.jl). `using EasyDraw` itself is instant: Qt loads with the first
