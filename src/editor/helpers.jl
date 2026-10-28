@@ -15,9 +15,9 @@ and the index of the last shape containing each (a point belongs to the last zon
 previews them. Also for the window's regions (their shapes).
 """
 function drawn_points(L, nel, ni, shapes)
-    hx, hz = L[1]/(nel[1]*ni), L[2]/(nel[2]*ni)
-    x = [(i - 0.5)*hx for i ∈ 1:nel[1]*ni, _ ∈ 1:nel[2]*ni]
-    z = [(j - 0.5)*hz for _ ∈ 1:nel[1]*ni, j ∈ 1:nel[2]*ni]
+    ax, az = subcell_centres(L, nel, ni)
+    x = [xi for xi ∈ ax, _ ∈ az]
+    z = [zj for _ ∈ ax, zj ∈ az]
     r = [something(findlast(s -> inside(s, (x[k], z[k])), shapes), 0) for k ∈ eachindex(x)]
     return x[r .> 0], z[r .> 0], r[r .> 0]
 end

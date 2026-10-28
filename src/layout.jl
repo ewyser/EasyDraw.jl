@@ -87,6 +87,8 @@ end
 function load_layout(file::AbstractString)
     d = TOML.parsefile(file)
     haskey(d, "domain") || throw(ArgumentError("a layout file needs a [domain] table (L, nel)"))
+    other = setdiff(keys(d), ("domain", "sides", "defaults", "options", "run", "zone"))   # another program's file?
+    isempty(other) || @warn "$(basename(file)): not part of a layout, ignored: $(join(sort(collect(other)), ", ")). The zones' values are read as written."
     dom = d["domain"]
     known = ("name", "shape", "vertices", "rings", "lo", "hi", "centre", "radius")
     zones = map(enumerate(get(d, "zone", []))) do (i, z)

@@ -63,6 +63,10 @@ end
               (l.L, l.nel, l.ni, l.width, l.nely, l.sides, l.defaults, l.options, l.run) && back.folder == dirname(f)
         @test [z.name for z ∈ back.zones] == ["soil", "boulder", "lens", "rock"] && back.zones[1].props == Dict(:E => 5e7)
         @test back.zones[2].shape.radius == 1.0 && back.zones[2].props[:v] == [0.0, -1.0] && back.zones[3].shape.sizes == [4, 3]
+        g = joinpath(mktempdir(), "other.toml")                                          # another program's file: what is not read is said
+        write(g, "thermal = true\n[domain]\nL = [1.0, 1.0]\nnel = [1, 1]\n[material]\nE = 1.0\n")
+        @test_logs (:warn, r"ignored: material, thermal") load_layout(g)
+        @test_logs load_layout(f)                                                          # a layout's: nothing to say
         @test_throws ArgumentError Layout(; L=[1, 1, 1], nel=[1, 1, 1])                       # 2D only
         @test_throws ArgumentError Layout(; L=[1, 1], nel=[1, 1], sides=Dict("front" => "x"))
         @test_throws ArgumentError save_layout(joinpath(mktempdir(), "r.toml"), Layout(; L=[1, 1], nel=[1, 1], zones=[Zone("r", Region(x -> true))]))
@@ -77,6 +81,8 @@ end
         @test property(l, "rho", xs, zs) == [2000 1000; 1000 1000; 1000 1000; 2000 1000]   # b does not set it: the default
         @test isequal(property(l, :eta, xs, zs), [NaN NaN; 5 5; 5 5; NaN NaN])           # no default: NaN
         p = points(l); @test p.zone == [1, 2, 2, 1, 2, 2] && (p.x[2], p.z[2]) == (1.5, 0.5)   # ni = 1: the cell centres
+        @test zone_at(l.zones, (2.0, 0.75)) == 2 && ED.subcell_centres([4.0, 2.0], [4, 2], 2) == [0.25:0.5:3.75, 0.25:0.5:1.75]
+        @test_throws ArgumentError property(Layout(; L=[1, 1], nel=[1, 1], zones=[Zone("a", Block([0, 0], [1, 1]); v=[1, 2])]), :v, [0.5], [0.5])
     end
     @testset "partition: disjoint regions, shared edges, sides" begin
         area(p, r) = ED.signed_area(p.vertices, r.outer) + sum((ED.signed_area(p.vertices, h) for h ∈ r.holes); init=0.0)

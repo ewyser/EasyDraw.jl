@@ -3,12 +3,31 @@
 
 """
     zone_at(layout, x) -> Int
+    zone_at(zones, x) -> Int
 
 The zone of the point `x` (`(x, z)`, or `(x, y, z)` for an extruded layout): the index of the last zone containing
 it, 0 for none.
 """
+function zone_at(zones::AbstractVector{Zone}, x)
+    return something(findlast(z -> inside(z.shape, x), zones), 0)
+end
 function zone_at(l::Layout, x)
-    return something(findlast(z -> inside(z.shape, x), l.zones), 0)
+    return zone_at(l.zones, x)
+end
+
+"""
+    subcell_centres(L, nel, ni) -> axes
+
+The sub-cell centres of a domain `[0, L]` with `nel` cells per axis, `ni` per cell and axis, as one coordinate vector
+per axis (any dimension): the points `points` and the window's preview are made of. The range arithmetic is that of
+ElastoPlasm's material points (cell size `L/nel`, the last node `last(0:h:L)`), so that a preview and a simulation
+built from the same layout have the same points, to the bit.
+"""
+function subcell_centres(L, nel, ni)
+    return map(eachindex(L)) do d
+        h = L[d]/nel[d]
+        collect(0.5*h/ni:h/ni:last(0.0:h:L[d]) - 0.5*h/ni)
+    end
 end
 
 """
@@ -29,6 +48,7 @@ of `key`, else `NaN`) where the zone does not set it or no zone holds the point.
 """
 function property(l::Layout, key, xs, zs; default=get(l.defaults, string(key), NaN))
     vals = [get(z.props, Symbol(key), default) for z ∈ l.zones]
+    all(v -> v isa Real, vals) || throw(ArgumentError("property $key: a zone sets it to something other than a number"))
     return [(k = zone_at(l, (x, z)); Float64(k == 0 ? default : vals[k])) for x ∈ xs, z ∈ zs]
 end
 
