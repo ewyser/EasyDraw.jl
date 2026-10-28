@@ -1,14 +1,9 @@
-# QML (Qt Quick) window for EasyDraw's `draw`: a thin view of an `Editor` (src/editor/). Install QML in your
-# default environment (] activate; add QML) and `using QML` next to EasyDraw (or a package using it) to enable it.
-module EasyDrawQMLExt
+# The window of `draw` (Qt Quick, through QML.jl): a thin view of an `Editor` (src/editor/), which holds the state and
+# every edit.
 
-using QML
-using EasyDraw: EasyDraw, Editor, background_json, overlay_json, panel_json, transform, press!, move!, release!, leave!, wheel!,
-                zoom!, fit!, key!, set_step!, set_domain_field!, set_bc!, new_zone!, set_circle!, select_zone!, rename_zone!,
-                set_prop!, swap_zone!, delete_zone!, set_picked!, remove_picked!, undo!, redo!, set_option!, type_option!,
-                tick_option!, tick_value!, set_run!, pick_run!, ready!, create!, cancel!, load!, use_picture!, set_backdrop!, load_catalog!,
-                remove_backdrop!, backdrop_size!, set_backdrop_field!, scale_bar!, apply_scale!, sections, julia_index,
-                qml_index, localpath, fileurl, tab_steps, tab_step
+# QML (Qt) takes seconds to load, and makes code loaded before it recompile: loaded by the first window, not with
+# EasyDraw or a package using it; its functions, newer than the caller, are called through `invokelatest`
+qml() = Base.require(@__MODULE__, :QML)
 
 const EDITOR = Ref{Editor}()                                 # the editor the open window shows
 const QMLFILE = joinpath(@__DIR__, "EasyDraw.qml")
@@ -73,7 +68,7 @@ const CALLS = (;
 
 # registered for each window: QML.jl forgets them when a window's application ends, so registering once
 # (in __init__) left a second window of the same session with none
-register_functions() = foreach(((name, f),) -> QML.qmlfunction(string(name), f), pairs(CALLS))
+register_functions() = foreach(((name, f),) -> Base.invokelatest(qml().qmlfunction, string(name), f), pairs(CALLS))
 
 """
     window(editor; shots=nothing, startdir=pwd())
@@ -81,19 +76,16 @@ register_functions() = foreach(((name, f),) -> QML.qmlfunction(string(name), f),
 Open the QML window on an `Editor` (`draw` makes one), blocking until Create…, Cancel or closing it; the editor's
 `result` is then the layout, or `nothing`. With `shots = (dir, steps)` the window instead saves a PNG of each listed
 step into `dir` and closes (for tests and documentation; run it with `QT_QPA_PLATFORM=offscreen`). Its file and
-folder dialogs start in `startdir`.
+folder dialogs start in `startdir`. The first window of a session loads QML, which takes a few seconds.
 """
-function EasyDraw.window(e::Editor; shots=nothing, startdir=pwd())
+function window(e::Editor; shots=nothing, startdir=pwd())
     EDITOR[] = e
     isnothing(shots) || (ENV["QT_QUICK_CONTROLS_STYLE"] = get(ENV, "QT_QUICK_CONTROLS_STYLE", "Fusion"))
     register_functions()
     steps = isnothing(shots) ? Int[] : filter(∈(tab_steps(e)), collect(Int, shots[2]))   # the steps it has
-    loadqml(QMLFILE; shotdir=isnothing(shots) ? "" : shots[1], shotsteps=steps,                    # names, tabs
-            shottabs=[qml_index(findfirst(==(s), tab_steps(e))) for s ∈ steps],
-            startdir=fileurl(startdir))
+    Base.invokelatest(qml().loadqml, QMLFILE; shotdir=isnothing(shots) ? "" : shots[1], shotsteps=steps,   # names, tabs
+                      shottabs=[qml_index(findfirst(==(s), tab_steps(e))) for s ∈ steps], startdir=fileurl(startdir))
     @info "Drawing window open: domain, zones, options and run, then click Create… (Cancel or closing the window aborts)"
-    exec()
+    Base.invokelatest(qml().exec)
     return e
-end
-
 end

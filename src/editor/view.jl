@@ -1,5 +1,5 @@
 # What the QML view reads: the canvas and the side panel as JSON strings, in the canvas's pixels.
-# Independent of Qt (test_draw.jl checks it without QML).
+# Independent of Qt (EasyDraw's tests check it without a window).
 
 # ---- JSON for QML (the canvas and the panel read their contents as JSON strings)
 

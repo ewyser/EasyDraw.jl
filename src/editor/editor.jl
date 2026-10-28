@@ -1,5 +1,5 @@
 # The drawing window as plain Julia state: what is drawn, and what each user action does. A GUI
-# (`EasyDrawQMLExt`) only shows it and forwards events, so everything here is testable without one.
+# (`window/window.jl`) only shows it and forwards events, so everything here is testable without one.
 # Coordinates are data coordinates (x, z in m) unless named `px`.
 
 # a picture to trace the zones over (a scanned section, a map), drawn under the grid: its file, its size in pixels

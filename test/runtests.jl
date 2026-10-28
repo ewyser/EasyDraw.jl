@@ -1,6 +1,6 @@
 # EasyDraw's tests, run on their own (`] test EasyDraw` in an environment that has it) and from ElastoPlasm's suite
 # (test/testset/test_easydraw.jl): shapes, zones, layouts and catalogs, the editor driven as a user would (everything
-# but Qt), then the QML window itself, offscreen, where QML is installed
+# but Qt), then the window itself, offscreen
 using Test, EasyDraw
 const ED = EasyDraw
 
@@ -418,34 +418,17 @@ end
         @test occursin("\"kinds\":[]", j) && isempty(e.sides) && ED.current_layout(e).zones[1].props == Dict(:E => 1.0)
         @test ED.checks(e) == (; errors=String[], warnings=String[], info=["32 points, 4 × 2 cells"])
     end
-    @testset "without the window: how to get it" begin
-        @test_throws ErrorException ED.window(nothing)
-        for installed ∈ (false, true)
-            m = ED.drawing_window_help(; installed, qt="6.8.2")
-            @test occursin("Qt6Base_jll@6.8.2", m) && occursin("_qt_version_tag", m)       # the pin, the symptom
-            @test occursin("installed but not loaded", m) == installed
-            m = ED.drawing_window_help(; installed, qt=nothing)                            # no Qt loaded yet: no pin
-            @test !occursin("@", m) && occursin("installed but not loaded", m) == installed
-        end
-    end
-
-    if isnothing(Base.find_package("QML"))
-        @info "QML is not installed: the window itself is not tested"
-    else
-        ENV["QT_QPA_PLATFORM"] = get(ENV, "QT_QPA_PLATFORM", "offscreen"); ENV["QT_QUICK_BACKEND"] = "software"
-        @eval using QML
-        @testset "the window, offscreen" begin
-            @test !isnothing(Base.get_extension(EasyDraw, :EasyDrawQMLExt))
-            d = mktempdir()
-            l = Layout(; L=[20.0, 10.0], nel=[20, 10], sides=Dict("bottom" => "fixed"),
-                         zones=[Zone("soil", Block([0, 0], [20, 6])), Zone("rock", Block([0, 0], [20, 2]); E=5e7)])
-            @test isnothing(draw(l; catalog=CAT, shots=(d, [1, 2, 3, 4])))                      # closes itself; no Create…: nothing
-            @test all(k -> isfile(joinpath(d, "step$k.png")), 1:4)
-            d2 = mktempdir()                                                                   # a second window, same session,
-            @test isnothing(draw(l; shots=(d2, [2, 4]))) && isfile(joinpath(d2, "step2.png"))   # an empty catalog
-            e = ED.Editor(l; step=1); pic = write_bmp(joinpath(d2, "a picture.bmp"), 550, 600)  # a space in its name
-            ED.set_backdrop!(e, pic); ED.window(e; shots=(d2, [1]))                            # Qt measured it, the domain followed:
-            @test e.backdrop.npx == (550, 600) && e.L == [20.0, 22.0]                          # 20 × 21.8 m, whole elements
-        end
+    ENV["QT_QPA_PLATFORM"] = get(ENV, "QT_QPA_PLATFORM", "offscreen"); ENV["QT_QUICK_BACKEND"] = "software"
+    @testset "the window, offscreen" begin
+        d = mktempdir()
+        l = Layout(; L=[20.0, 10.0], nel=[20, 10], sides=Dict("bottom" => "fixed"),
+                     zones=[Zone("soil", Block([0, 0], [20, 6])), Zone("rock", Block([0, 0], [20, 2]); E=5e7)])
+        @test isnothing(draw(l; catalog=CAT, shots=(d, [1, 2, 3, 4])))                          # closes itself; no Create…: nothing
+        @test all(k -> isfile(joinpath(d, "step$k.png")), 1:4)
+        d2 = mktempdir()                                                                       # a second window, same session,
+        @test isnothing(draw(l; shots=(d2, [2, 4]))) && isfile(joinpath(d2, "step2.png"))       # an empty catalog
+        e = ED.Editor(l; step=1); pic = write_bmp(joinpath(d2, "a picture.bmp"), 550, 600)      # a space in its name
+        ED.set_backdrop!(e, pic); ED.window(e; shots=(d2, [1]))                                # Qt measured it, the domain followed:
+        @test e.backdrop.npx == (550, 600) && e.L == [20.0, 22.0]                              # 20 × 21.8 m, whole elements
     end
 end

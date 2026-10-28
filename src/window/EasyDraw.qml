@@ -1,4 +1,4 @@
-// The drawing window of EasyDraw's `draw` (EasyDrawQMLExt): a view of the Julia `Editor`. Everything it shows
+// The drawing window of EasyDraw's `draw` (window.jl): a view of the Julia `Editor`. Everything it shows
 // comes from Julia.background()/overlay()/panel() (JSON); every action calls one Julia function, then refresh().
 import QtQuick
 import QtQuick.Controls

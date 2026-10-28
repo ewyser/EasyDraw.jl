@@ -17,21 +17,13 @@ EasyDraw is not registered yet. It lives in the ElastoPlasm.jl repository, in `l
 ] add https://github.com/ewyser/ElastoPlasm.jl:lib/EasyDraw
 ```
 
-The drawing window needs QML (Qt Quick), installed in your default environment:
-
-```julia
-] activate
-] add QML
-```
-
-If `using QML` then fails with a missing `_qt_version_tag` symbol, another package in your session (Plots/GR, for
-one) already loads a different Qt. Pin QML's Qt libraries to that version; `draw()` without QML prints the command.
-Everything except the window works without QML.
+This installs the window too (Qt Quick, through QML.jl). `using EasyDraw` itself is instant: Qt loads with the first
+window, which takes a few seconds.
 
 ## Draw
 
 ```julia
-using EasyDraw, QML
+using EasyDraw
 l = draw()                          # an empty domain; returns a Layout, or nothing if cancelled
 l = draw("plume/plume_layout.toml") # edit a layout file
 ```
