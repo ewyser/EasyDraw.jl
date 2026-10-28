@@ -3,6 +3,15 @@ uuid = "09c6abe4-4b64-4d71-aef0-732a87e6de5c"
 authors = ["ewyser <manuwyser@gmail.com>"]
 version = "0.1.0"
 
+[deps]
+TOML = "fa267f1f-6049-4f14-aa54-33bafae1ed76"
+
+[weakdeps]
+QML = "2db162a6-7e43-52c3-8d84-290c1c42d82a"
+
+[extensions]
+EasyDrawQMLExt = "QML"
+
 [compat]
 julia = "1.10"
 
