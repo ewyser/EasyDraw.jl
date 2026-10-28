@@ -383,6 +383,27 @@ end
         @test occursin("\"tab\":$(e.step - 1)", ED.panel_json(e))
         j = ED.json((; a=[1, 2.5], b="x\"y", c=nothing, d=true)); @test j == "{\"a\":[1.0,2.5],\"b\":\"x\\\"y\",\"c\":null,\"d\":true}"
     end
+    @testset "a catalog from a file, and another loaded in the window" begin
+        f = write_catalog(joinpath(mktempdir(), "mine.toml"), CAT)
+        @test Catalog(f).side == "free" && ED.Editor(Layout(; L=[1, 1], nel=[1, 1]), f).catalog.boundary == ["free", "fixed"]   # a path will do
+        e = editor(Layout(; L=[10.0, 5.0], nel=[10, 5], zones=[Zone("a", Block([0, 0], [10, 2]); E=5e7, phi=0.5, v=[1.0, 0.0])]); step=1)
+        ED.set_option!(e, "model.kind", 2); ED.type_option!(e, "grid.n", "20"); ED.pick_run!(e, "mode", 2); ED.set_run!(e, "steps", "30")
+        e.run["host"] = "kept"; ED.set_bc!(e, "bottom", "fixed"); ED.set_prop!(e, "E", "60")   # an undo step: E 5e7 → 6e7
+        other = Catalog(; zone=[Field("E"; label="E [GPa]", scale=1e-9, default=2e9), Field("rho"; default=2700.0)],
+                          boundary=["free", "periodic"], side="periodic",
+                          options=[Field("model.kind", :menu; values=["frictional", "cohesive", "viscous"], default="viscous")],
+                          run=[Field("steps", :integer; default=5, min=1), Field("cfl"; default=0.5)])
+        ED.load_catalog!(e, write_catalog(joinpath(mktempdir(), "other.toml"), other))
+        @test e.status == "Catalog other.toml loaded: zone properties 2, options 1, run settings 2."
+        @test e.regions[1].props == Dict("E" => 6e7) && e.regions[1].extra == Dict(:phi => 0.5, :v => [1.0, 0.0])   # φ not listed: carried
+        @test ED.current_layout(e).zones[1].props == Dict(:E => 6e7, :phi => 0.5, :v => [1.0, 0.0])          # nothing lost
+        @test e.options == Dict("model" => Dict("kind" => "cohesive"))                      # still valid: kept; grid.n dropped
+        @test e.run == Dict("steps" => 30, "cfl" => 0.5, "host" => "kept")                  # kept; a new default; a host's own
+        @test e.sides["bottom"] == "periodic" && e.sides["left"] == "free"                 # no "fixed" any more: the default
+        j = ED.panel_json(e); @test occursin("E [GPa]", j) && occursin("default 2.0", j) && occursin("\"sections\":[\"model\"]", j)
+        ED.undo!(e); @test e.regions[1].props == Dict("E" => 5e7) && e.regions[1].extra[:phi] == 0.5   # undo: split the new way
+        ED.load_catalog!(e, "nothere.toml"); @test startswith(e.status, "Catalog not loaded") && e.catalog.zone[1].label == "E [GPa]"
+    end
     @testset "an empty catalog: no properties, sides or options" begin
         e = ED.Editor(Layout(; L=[4, 2], nel=[4, 2], zones=[Zone("a", Block([0, 0], [4, 2]); E=1.0)]))
         @test isempty(e.regions[1].props) && e.regions[1].extra == Dict(:E => 1.0)          # carried through

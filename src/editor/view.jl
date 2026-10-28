@@ -172,7 +172,8 @@ function panel_json(e::Editor)
                 ni=qml_index(e.ni), nis=["$(n)×$(n)" for n ∈ 1:max(8, e.ni)], kinds,
                 bcs=isempty(kinds) ? [] : [(; side=n, index=qml_index(findfirst(==(get(e.sides, n, c.side)), kinds))) for n ∈ SIDES])
     x, _, r = preview_points(e)
-    default(f) = (d = get(e.defaults, f.key, nothing); d isa Real ? "default $(round(d*f.scale; sigdigits=6))" : "")
+    zd = zone_defaults(e)
+    default(f) = (d = get(zd, f.key, nothing); d isa Real ? "default $(round(d*f.scale; sigdigits=6))" : "")
     zones = (; names=["$k  $(rg.name)" for (k, rg) ∈ enumerate(e.regions)], selected=qml_index(i), name=i == 0 ? "" : e.regions[i].name,
                color=i == 0 ? "" : zone_color(i),
                props=[(; key=f.key, label=f.label, default=default(f),

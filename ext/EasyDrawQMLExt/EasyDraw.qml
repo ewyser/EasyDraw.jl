@@ -170,7 +170,10 @@ ApplicationWindow {
                     // 1 Domain: draw on a domain sized by hand, or on a picture (its own panel), which the domain follows
                     ScrollView { contentWidth: availableWidth; clip: true
                         GridLayout { width: parent.width; columns: 2; columnSpacing: 8
-                            Button { text: "Start from a file…"; Layout.columnSpan: 2; onClicked: loadDialog.open() }
+                            RowLayout { Layout.columnSpan: 2
+                                Button { text: "Start from a file…"; onClicked: loadDialog.open() }
+                                Button { text: "Load catalog…"; onClicked: catalogDialog.open()            // what zones, options, run offer
+                                    ToolTip.visible: hovered; ToolTip.text: "the zone properties, boundary kinds, options and run settings, from a catalog TOML file (e.g. your solver's)" } }
                             RowLayout { Layout.columnSpan: 2; Layout.topMargin: 6
                                 RadioButton { text: "Domain"; checked: !win.panel.picture; onClicked: win.act(() => Julia.use_picture(false)) }
                                 RadioButton { text: "Picture to draw on"; checked: win.panel.picture
@@ -338,6 +341,8 @@ ApplicationWindow {
         onAccepted: win.act(() => Julia.set_backdrop(selectedFile.toString())) }
     FolderDialog { id: folderDialog; currentFolder: startdir                               // Create…: the case's folder
         onAccepted: { if (Julia.create(selectedFolder.toString())) Qt.quit(); else win.refresh() } }
+    FileDialog { id: catalogDialog; fileMode: FileDialog.OpenFile; nameFilters: ["TOML files (*.toml)"]; currentFolder: startdir
+        onAccepted: win.act(() => Julia.load_catalog(selectedFile.toString())) }
     FileDialog { id: loadDialog; fileMode: FileDialog.OpenFile; nameFilters: ["TOML files (*.toml)"]; currentFolder: startdir
         onAccepted: win.act(() => Julia.load(selectedFile.toString())) }
 

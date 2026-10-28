@@ -6,7 +6,7 @@ using QML
 using EasyDraw: EasyDraw, Editor, background_json, overlay_json, panel_json, transform, press!, move!, release!, leave!, wheel!,
                 zoom!, fit!, key!, set_step!, set_domain_field!, set_bc!, new_zone!, set_circle!, select_zone!, rename_zone!,
                 set_prop!, swap_zone!, delete_zone!, set_picked!, remove_picked!, undo!, redo!, set_option!, type_option!,
-                tick_option!, tick_value!, set_run!, pick_run!, ready!, create!, cancel!, load!, use_picture!, set_backdrop!,
+                tick_option!, tick_value!, set_run!, pick_run!, ready!, create!, cancel!, load!, use_picture!, set_backdrop!, load_catalog!,
                 remove_backdrop!, backdrop_size!, set_backdrop_field!, scale_bar!, apply_scale!, sections, julia_index,
                 qml_index, localpath, fileurl, tab_steps, tab_step
 
@@ -61,6 +61,7 @@ const CALLS = (;
     create     = url -> create!(EDITOR[], localpath(String(url))),
     cancel     = act(cancel!),
     load       = act((e, url) -> load!(e, localpath(url))),
+    load_catalog = act((e, url) -> load_catalog!(e, localpath(url))),             # Load catalog…
     use_picture = act((e, on) -> use_picture!(e, Bool(on))),                      # the Domain step's choice
     set_backdrop = act((e, url) -> set_backdrop!(e, localpath(url))),
     remove_backdrop = act(remove_backdrop!),

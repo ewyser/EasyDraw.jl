@@ -137,7 +137,7 @@ min = 1
 ```
 
 ```julia
-l = draw(; catalog=read_catalog("catalog.toml"))
+l = draw(; catalog="catalog.toml")            # the file itself (or read_catalog("catalog.toml"))
 l.run["nt"]                                   # every run setting
 get(get(l.options, "solver", Dict()), "method", "direct")   # options: only those ticked, as overrides of the default
 ```
@@ -158,7 +158,15 @@ Each field can also set:
 - `names`: the names the window shows for `values`.
 
 A host can also give the catalog as plain data, a `Dict` shaped like this TOML (`Catalog(dict)`; `draw` takes
-either), so that its code builds no EasyDraw type. `write_catalog` writes either as TOML.
+a `Catalog`, a `Dict` or a file), so that its code builds no EasyDraw type. `write_catalog` writes either as TOML.
+
+In the window, **Load catalog…** (Domain step) loads another catalog file, e.g. your solver's, without restarting:
+
+- Nothing drawn is lost. Each zone keeps all its properties: those the new catalog lists are shown, the others are
+  carried through.
+- Option overrides and run settings that are still valid are kept. The old catalog's other ones are dropped.
+- A side whose boundary kind the new catalog lacks takes the new default.
+- Undo does not undo the load: load the previous catalog back instead.
 
 Your code can also pass functions for what a file cannot hold:
 

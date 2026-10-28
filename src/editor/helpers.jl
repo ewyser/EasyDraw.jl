@@ -61,14 +61,18 @@ function overlap(a, b)
     return a[1] ≤ b[2] && b[1] ≤ a[2] && a[3] ≤ b[4] && b[3] ≤ a[4]
 end
 
+# a zone's properties split in those the catalog lists (`keys`, numbers: shown, by key) and the others (carried through)
+function split_props(props, keys)
+    shown(k, x) = string(k) ∈ keys && x isa Real
+    return (Dict{String,Float64}(string(k) => x for (k, x) ∈ props if shown(k, x)),
+            Dict{Symbol,Any}(Symbol(k) => x for (k, x) ∈ props if !shown(k, x)))
+end
 # the window's regions from a layout's zones: polygons, (x, z) blocks as their rectangle, (x, z) balls as circles; the
-# properties the catalog lists (`keys`, numbers) shown, the others carried through
+# properties the catalog lists (`keys`) shown, the others carried through
 function drawn_regions(l::Layout, keys)
     map(l.zones) do z
         s = z.shape
-        shown(k, x) = string(k) ∈ keys && x isa Real
-        props = Dict{String,Float64}(string(k) => x for (k, x) ∈ z.props if shown(k, x))
-        extra = Dict{Symbol,Any}(k => x for (k, x) ∈ z.props if !shown(k, x))
+        props, extra = split_props(z.props, keys)
         if s isa Ball && length(s.centre) == 2
             return circle_region(z.name, s.centre, s.radius, props, extra)
         end

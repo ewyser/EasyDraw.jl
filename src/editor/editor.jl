@@ -39,7 +39,7 @@ Base.@kwdef mutable struct Editor
     load     :: Function
     title    :: String
     # from the layout
-    defaults :: Dict{String,Any}                             # the zone properties' defaults (the catalog's, overridden)
+    defaults :: Dict{String,Any}                             # the layout's own zone-property defaults, over the catalog's
     folder   :: String
     regions  :: Vector{DrawnRegion}
     L        :: Vector{Float64}
@@ -84,10 +84,9 @@ end
 function Editor(l::Layout, catalog=Catalog(); step::Integer=2, check::Function=default_check,
                 save::Function=default_save, load::Function=load_layout, title::AbstractString="EasyDraw")
     catalog = Catalog(catalog)                               # a Catalog, or a Dict shaped like its TOML
-    defaults = merge(Dict{String,Any}(f.key => f.default for f ∈ catalog.zone if !isnothing(f.default)), l.defaults)
     sides = isempty(catalog.boundary) ? copy(l.sides) : merge(Dict(s => catalog.side for s ∈ SIDES), l.sides)
     run   = merge(Dict{String,Any}(f.key => f.default for f ∈ catalog.run if !isnothing(f.default)), l.run)
-    e = Editor(; catalog, check, save, load, title=String(title), defaults, folder=l.folder,
+    e = Editor(; catalog, check, save, load, title=String(title), defaults=copy(l.defaults), folder=l.folder,
                regions=drawn_regions(l, [f.key for f ∈ catalog.zone]), L=copy(l.L), nel=copy(l.nel), h=minimum(l.L ./ l.nel),
                l.ni, l.width, l.nely, sides, options=deepcopy(l.options), run, step=Int(step),
                selected=isempty(l.zones) ? 0 : 1, section=isempty(sections(catalog)) ? "" : first(sections(catalog)))
@@ -585,10 +584,49 @@ function set_run!(e::Editor, key, text)
 end
 pick_run!(e::Editor, key, j) = (e.run[key] = field(e.catalog.run, key).values[Int(j)]; e)
 
+# ---- the catalog: its zone-property defaults (the layout's own over them), and another one loaded from a file
+
+zone_defaults(e::Editor) = merge(Dict{String,Any}(f.key => f.default for f ∈ e.catalog.zone if !isnothing(f.default)), e.defaults)
+"""
+    load_catalog!(editor, file)
+
+"Load catalog…" (Domain step): what the window offers from now on, from a catalog's TOML file (e.g. a solver's own,
+`read_catalog`). Nothing drawn is lost: each zone keeps all its properties, those the new catalog lists shown, the
+others carried through (also in the undo steps); the option overrides and run settings it lists are kept where still
+valid, the old catalog's others dropped, run settings neither lists (a host's own) kept; a side whose kind it lacks
+takes its default. Loading is not undone by undo: load the previous catalog back. A file that is not a catalog is
+reported and changes nothing.
+"""
+function load_catalog!(e::Editor, file)
+    c = try Catalog(String(file)) catch err
+        e.status = "Catalog not loaded: " * sprint(showerror, err); return e
+    end
+    listed = [f.key for f ∈ c.zone]
+    for rg ∈ Iterators.flatten([[e.regions]; e.history; e.future])
+        rg.props, rg.extra = split_props(merge(Dict{Symbol,Any}(Symbol(k) => v for (k, v) ∈ rg.props), rg.extra), listed)
+    end
+    valid(f, v) = isnothing(v) ? nothing : (try field_value(f, v) catch; nothing end)
+    options = Dict{String,Any}()
+    for f ∈ c.options
+        v = valid(f, getoption(e.options, key_path(f.key)...))
+        isnothing(v) || setoption!(options, key_path(f.key)..., v)
+    end
+    old = Set(f.key for f ∈ e.catalog.run)
+    run = Dict{String,Any}(k => v for (k, v) ∈ e.run if k ∉ old)
+    for f ∈ c.run
+        v = something(valid(f, get(e.run, f.key, nothing)), f.default, Some(nothing))
+        isnothing(v) || (run[f.key] = v)
+    end
+    isempty(c.boundary) || foreach(s -> get(e.sides, s, "") ∈ c.boundary || (e.sides[s] = c.side), SIDES)
+    e.catalog, e.options, e.run, e.section = c, options, run, isempty(sections(c)) ? "" : first(sections(c))
+    e.status = "Catalog $(basename(String(file))) loaded: zone properties $(length(c.zone)), options $(length(c.options)), run settings $(length(c.run))."
+    return e
+end
+
 # ---- the layout, and finishing
 
 current_layout(e::Editor) = Layout(; L=copy(e.L), nel=copy(e.nel), ni=e.ni, width=e.width, nely=e.nely, sides=copy(e.sides),
-                                     defaults=copy(e.defaults), options=deepcopy(e.options), run=copy(e.run), folder=e.folder,
+                                     defaults=zone_defaults(e), options=deepcopy(e.options), run=copy(e.run), folder=e.folder,
                                      zones=[Zone(rg.name, shape_of(rg), merge(Dict{Symbol,Any}(Symbol(k) => v for (k, v) ∈ rg.props), rg.extra))
                                             for rg ∈ e.regions])
 """
@@ -629,7 +667,7 @@ function preview_points(e::Editor)
 end
 "The host's checks of the edited layout (errors, warnings, info)."
 function checks(e::Editor)
-    key = hash((e.defaults, e.folder, e.L, e.nel, e.ni, e.width, e.nely, e.sides, e.options, e.run,
+    key = hash((e.catalog, e.defaults, e.folder, e.L, e.nel, e.ni, e.width, e.nely, e.sides, e.options, e.run,
                 [(rg.name, rg.vertices, rg.sizes, rg.centre, rg.radius, rg.props, rg.extra) for rg ∈ e.regions]))
     return cached!(e, :checks, key) do
         try e.check(current_layout(e)) catch err

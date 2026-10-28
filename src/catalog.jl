@@ -31,12 +31,14 @@ end
 """
     Catalog(; zone=[], boundary=[], colors=[], side="", options=[], run=[])
     Catalog(dict)
+    Catalog(file)
 
 What a drawing window offers, from its host: the properties a zone may set (`zone`, `Field`s), the kinds of
 boundary each side may be (`boundary`, drawn in `colors`; `side` the default), the options (`options`, grouped
 into pages by the first part of their key) and the run settings (`run`). Empty by default: zones without
 properties, no boundaries and no options. A host may give it as plain data instead, a `Dict` shaped like the
-catalog's TOML (`read_catalog`), so that it builds no EasyDraw type; `draw` takes either.
+catalog's TOML (`read_catalog`), so that it builds no EasyDraw type, or as that TOML file (e.g. a solver's own);
+`draw` takes any of them.
 """
 struct Catalog
     zone     :: Vector{Field}
@@ -53,6 +55,7 @@ function Catalog(; zone=Field[], boundary=String[], colors=String[], side="", op
     return Catalog(collect(Field, zone), String.(boundary), String.(colors), side, collect(Field, options), collect(Field, run))
 end
 Catalog(c::Catalog) = c
+Catalog(file::AbstractString) = read_catalog(file)
 function Catalog(d::AbstractDict)
     b = get(d, "boundary", Dict{String,Any}())
     return Catalog(; zone=parse_field.(get(d, "zone", [])), options=parse_field.(get(d, "options", [])), run=parse_field.(get(d, "run", [])),

@@ -10,8 +10,9 @@ domain then follows; the cell size; a width to extrude along y; points per cell;
 out of the earlier ones), **Options** (the catalog's options; ticked ones override their default) and **Run** (the
 catalog's run settings, the checks). **Create…** asks for a folder, where the host's `save(layout, folder)` writes it
 (by default `<folder name>_layout.toml`), and returns the layout; **Cancel** or closing the window returns `nothing`.
-It opens on the domain step without a layout, on the zones step with one (`step`, 1–4). `catalog` is a `Catalog`
-or a `Dict` shaped like its TOML (`Catalog(dict)`). `check(layout)` gives the
+It opens on the domain step without a layout, on the zones step with one (`step`, 1–4). `catalog` is a `Catalog`,
+a `Dict` shaped like its TOML (`Catalog(dict)`), or that TOML file, e.g. a solver's own (`Catalog(file)`); the window's
+**Load catalog…** (Domain step) replaces it with another file's (`load_catalog!`). `check(layout)` gives the
 Run step's errors, warnings and info (by default `default_check`); `load(file)` reads "Start from a file…" (by
 default `load_layout`). With `shots = (dir, steps)` the window saves a PNG of each listed step into `dir` and closes
 (tests, documentation).
