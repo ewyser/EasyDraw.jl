@@ -84,6 +84,12 @@ function save_layout(file::AbstractString, l::Layout)
     open(io -> TOML.print(io, d; sorted=true), file, "w")
     return file
 end
+"""
+    load_layout(file) -> Layout
+
+A layout read from its TOML file (`save_layout` writes the format); its `folder` is the file's. Tables a layout does
+not have (another program's file, e.g. an ElastoPlasm case file) are ignored, with a warning.
+"""
 function load_layout(file::AbstractString)
     d = TOML.parsefile(file)
     haskey(d, "domain") || throw(ArgumentError("a layout file needs a [domain] table (L, nel)"))

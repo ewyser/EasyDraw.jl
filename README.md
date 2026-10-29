@@ -18,7 +18,7 @@ EasyDraw is not registered yet:
 ```
 
 This installs the window too (Qt Quick, through QML.jl). `using EasyDraw` itself is instant: Qt loads with the first
-window, which takes a few seconds.
+window of a session, which takes about 20 s (the next ones open at once). Julia 1.10 or later.
 
 ## Draw
 
@@ -193,3 +193,15 @@ friction angles stay in degrees: `load_layout` warns. Convert it with `save_layo
 - **The picture is not saved.** It is a drawing aid only, not stored with the layout.
 - **Zones are cut only when one is drawn.** Moving a zone afterwards can leave an overlap (the later zone wins) or a
   gap.
+
+## Tests
+
+```julia
+] test EasyDraw
+```
+
+They cover the shapes, layouts and catalogs, sampling, the partition and its `.geo`, the editor driven as a user would
+(drawing, snapping, cutting, undo, the picture, options, run, Create…), and the window itself, offscreen (a PNG of each
+step: `draw(layout; shots=(dir, steps))` saves them and closes, also for documentation).
+
+MIT license.

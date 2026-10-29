@@ -144,4 +144,11 @@ function write_catalog(file::AbstractString, catalog)
     open(io -> TOML.print(io, d), file, "w")
     return file
 end
-read_catalog(file::AbstractString) = Catalog(TOML.parsefile(file))
+"""
+    read_catalog(file) -> Catalog
+
+A catalog read from its TOML file (`write_catalog` writes the format); the same as `Catalog(file)`.
+"""
+function read_catalog(file::AbstractString)
+    return Catalog(TOML.parsefile(file))
+end

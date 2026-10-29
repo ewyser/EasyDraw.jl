@@ -19,6 +19,11 @@ function inpolygon(x::Real, z::Real, v)
     return inside
 end
 
+"""
+    AbstractShape
+
+A zone's shape: `Polygon`, `Block`, `Ball` or `Region`; `inside(shape, x)` tells whether a point lies in it.
+"""
 abstract type AbstractShape end
 """
     Polygon(vertices)
@@ -85,8 +90,15 @@ struct Region{F} <: AbstractShape
     f::F
 end
 
-# whether the point x (D coordinates) is in the shape; two-coordinate shapes act on (x, z)
+# a point's (x, z): what a two-coordinate shape reads of a 3D point
 xz(x) = (x[1], x[end])
+"""
+    inside(shape, x) -> Bool
+
+Whether the point `x` (its coordinates; a shape given by two, (x, z), reads a 3D point's x and z, so it is extruded
+along y) lies in `shape`: a `Polygon` by the even–odd rule over all its outlines, a `Block` with its bounds included,
+a `Ball` its closed disk or sphere, a `Region` its predicate.
+"""
 function inside(s::Polygon, x)                                # even–odd over all its outlines
     odd, o = false, 0
     for n ∈ s.sizes
