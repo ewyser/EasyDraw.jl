@@ -1,12 +1,16 @@
 """
     EasyDraw
 
-Zones of a 2D (x–z) model, drawn in a window or written in code: shapes (`Polygon`, `Block`, `Ball`, `Region`) and
-which points they contain (`inside`), named zones with properties (`Zone`; a point belongs to the last zone
-containing it), the model as a whole (`Layout`, `save_layout`/`load_layout`), and the window that draws it (`draw`,
-Qt Quick through QML.jl), whose properties, options and run settings come from its host's `Catalog`. For grid-based codes
-a layout is sampled at any coordinates (`zone_at`, `zone_index`, `property`, `points`); for finite elements it is
-split into disjoint regions (`partition`) and written as a Gmsh script (`write_geo`).
+Draw the zones of a 2D (x–z) model in a window, or write them in code, and get them back as data for a solver: the
+zone or a property at any coordinates, for finite differences and particles, or disjoint regions written as a Gmsh
+script, for finite elements.
+
+- Shapes and zones: [`Polygon`](@ref), [`Block`](@ref), [`Ball`](@ref), [`Region`](@ref), [`Zone`](@ref); a point
+  belongs to the last zone that contains it.
+- The model: [`Layout`](@ref), [`save_layout`](@ref), [`load_layout`](@ref).
+- The window: [`draw`](@ref), offering what its host's [`Catalog`](@ref) lists.
+- On a grid: [`zone_at`](@ref), [`zone_index`](@ref), [`property`](@ref), [`points`](@ref).
+- For a mesher: [`partition`](@ref), [`write_geo`](@ref).
 """
 module EasyDraw
 

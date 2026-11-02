@@ -1,21 +1,37 @@
 """
-    draw(layout=Layout(; L=[10, 5], nel=[20, 10]); catalog=Catalog(), step, check, save, load, title="EasyDraw",
-         shots=nothing, startdir=pwd()) -> Layout or nothing
+    draw(layout::Layout; catalog=Catalog(), step=2, check, save, load, title="EasyDraw", shots=nothing, startdir=pwd())
     draw(file; kwargs...)
+    draw(; L=[10, 5], nel=[20, 10], ni=2, kwargs...)
 
-Edit a layout (or a layout file) in a window, in four steps: **Domain** (optionally start from a file; draw on a
-domain, dragging its corner or typing `Lx`, `Lz`, or on a picture, scaled by a scale bar measured on it, which the
-domain then follows; the cell size; a width to extrude along y; points per cell; a boundary kind per side),
-**Zones** (polygons, rectangles, triangles, circles, each with the properties the `catalog` lists; a new zone is cut
-out of the earlier ones), **Options** (the catalog's options; ticked ones override their default) and **Run** (the
-catalog's run settings, the checks). **Create…** asks for a folder, where the host's `save(layout, folder)` writes it
-(by default `<folder name>_layout.toml`), and returns the layout; **Cancel** or closing the window returns `nothing`.
-It opens on the domain step without a layout, on the zones step with one (`step`, 1–4). `catalog` is a `Catalog`,
-a `Dict` shaped like its TOML (`Catalog(dict)`), or that TOML file, e.g. a solver's own (`Catalog(file)`); the window's
-**Load catalog…** (Domain step) replaces it with another file's (`load_catalog!`). `check(layout)` gives the
-Run step's errors, warnings and info (by default `default_check`); `load(file)` reads "Start from a file…" (by
-default `load_layout`). With `shots = (dir, steps)` the window saves a PNG of each listed step into `dir` and closes
-(tests, documentation).
+Open the drawing window on a layout, a layout file, or a new domain, and wait until it closes. Returns the `Layout`
+when **Create…** wrote it, `nothing` after **Cancel** or when the window is closed.
+
+The window has four steps, **Domain**, **Zones**, **Options** (only when the catalog has options) and **Run**; see
+[Drawing in the window](@ref). The first window of a session takes about 20 s, while Qt loads; the next ones open at
+once.
+
+# Arguments
+- `catalog`: what the window offers: a [`Catalog`](@ref), a `Dict` shaped like its TOML, or a catalog file.
+- `step`: the step it opens on, 1 (Domain) to 4 (Run): 2 with a layout or a file, 1 for a new domain.
+- `check`: `check(layout)` returns `(; errors, warnings, info)`, vectors of strings shown on the Run step: an error
+  blocks Create…, a warning needs a second click. By default: the number of points, and the zones that reach outside
+  the domain or hold no point.
+- `save`: `save(layout, folder)` writes the layout into the folder chosen at Create…; by default as
+  `<folder name>_layout.toml` ([`save_layout`](@ref)).
+- `load`: `load(file)` returns the `Layout` that "Start from a file…" opens; by default [`load_layout`](@ref).
+- `title`: the window's title.
+- `shots`: `(dir, steps)`: instead of waiting, save a picture of each listed step into `dir` (`step1.png`, …) and
+  close. For tests and documentation, offscreen (`QT_QPA_PLATFORM=offscreen`).
+- `startdir`: the folder the file and folder dialogs start in.
+
+# Throws
+- `ArgumentError`: when a zone is a [`Region`](@ref) or a 3D shape, which the window cannot draw.
+
+# Examples
+```julia
+l = draw()                                                      # a new domain
+l = draw("model_layout.toml"; catalog="catalog.toml")           # edit a layout, with a host's catalog
+```
 """
 function draw(l::Layout; catalog=Catalog(), step::Integer=2, check::Function=default_check, save::Function=default_save,
               load::Function=load_layout, title::AbstractString="EasyDraw", shots=nothing, startdir=pwd())

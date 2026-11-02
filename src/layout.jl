@@ -1,10 +1,28 @@
 """
+    Zone
+
+A named part of a model: the points in its shape, with properties of any name. Where zones overlap, a point belongs
+to the last zone that contains it.
+
+# Fields
+- `name::String`: the zone's name.
+- `shape::AbstractShape`: its [`Polygon`](@ref), [`Block`](@ref), [`Ball`](@ref) or [`Region`](@ref).
+- `props::Dict{Symbol,Any}`: its properties. A number is stored as a `Float64`, a list of numbers as a
+  `Vector{Float64}`, anything else as given.
+
+# Constructors
     Zone(name, shape; props...)
     Zone(name, shape, props::AbstractDict)
 
-A named part of a model: the points in `shape`, with properties `props` (any names; numbers are stored as
-`Float64`, lists of numbers as `Vector{Float64}`, anything else as given). A point belongs to the last zone that
-contains it.
+# Examples
+```jldoctest
+julia> z = Zone("lens", Ball([5, 2], 1.0); rho=2100, note="wet");
+
+julia> z.props[:rho], z.props[:note]
+(2100.0, "wet")
+```
+
+See also [`Layout`](@ref), [`zone_at`](@ref).
 """
 struct Zone
     name::String
@@ -22,16 +40,43 @@ Zone(name::AbstractString, shape::AbstractShape; props...) = Zone(name, shape, D
 const SIDES = ("left", "right", "bottom", "top")
 
 """
+    Layout
+
+A 2D (x–z) model, as drawn in the window or written in code: its domain, its zones, a boundary kind per side, and the
+values its host's [`Catalog`](@ref) asks for. Values are kept as given: SI in, SI out.
+
+# Fields
+- `L::Vector{Float64}`: the domain's size `[Lx, Lz]`: the domain is `[0, Lx] × [0, Lz]`.
+- `nel::Vector{Int}`: the number of cells along x and z.
+- `ni::Int`: points per cell and axis, where the window previews points and [`points`](@ref) samples (`1`: the cell
+  centres).
+- `width::Union{Nothing,Float64}`: a width along y, to extrude the model in 3D; `nothing` in 2D.
+- `nely::Union{Nothing,Int}`: the number of cells along y, with `width`.
+- `zones::Vector{Zone}`: the zones, in order: where they overlap, the later one wins.
+- `sides::Dict{String,String}`: a boundary kind per side, by `"left"`, `"right"`, `"bottom"` or `"top"`.
+- `defaults::Dict{String,Any}`: each zone property's default, by key, for the zones that do not set it.
+- `options::Dict{String,Any}`: the options set, nested by the parts of their keys: `"solver.method"` is
+  `options["solver"]["method"]`. Only the options ticked in the window are there.
+- `run::Dict{String,Any}`: the run settings, by key.
+- `folder::String`: the folder the layout was created in (the window's Create…) or read from; `""` otherwise.
+
+# Constructors
     Layout(; L, nel, ni=2, width=nothing, nely=nothing, zones=[], sides=Dict(), defaults=Dict(), options=Dict(),
              run=Dict(), folder="")
 
-A 2D (x–z) model as drawn: the domain `[0, L[1]] × [0, L[2]]` with `nel` cells per axis and `ni`×`ni` points per
-cell (where the window previews points; `ni = 1`: the cell centres), optionally extruded along y (`width`, `nely`
-cells); its `zones` (a point belongs to the last zone containing it); a boundary kind per side (`sides`: `"left"`,
-`"right"`, `"bottom"`, `"top"`); the default of each zone property (`defaults`, by key); the options (`options`,
-nested by key: `"basis.which"` is `options["basis"]["which"]`) and run settings (`run`, by key); and the folder it
-was created in (`folder`, set by the window's Create…). Values are kept as given (SI in, SI out). Written to and
-read from TOML by `save_layout`/`load_layout`.
+# Throws
+- `ArgumentError`: when `L` or `nel` does not have 2 entries, a size or count is not positive, only one of `width`
+  and `nely` is given, or a side is not one of the four.
+
+# Examples
+```jldoctest
+julia> l = Layout(; L=[100, 50], nel=[50, 25], zones=[Zone("lens", Ball([50, 20], 5.0); rho=2100)]);
+
+julia> l.L, l.nel, l.ni
+([100.0, 50.0], [50, 25], 2)
+```
+
+See also [`save_layout`](@ref), [`draw`](@ref).
 """
 struct Layout
     L        :: Vector{Float64}
@@ -61,13 +106,31 @@ function Layout(; L, nel, ni::Integer=2, width=nothing, nely=nothing, zones=Zone
 end
 
 """
-    save_layout(file, layout) -> file
-    load_layout(file) -> Layout
+    save_layout(file, layout::Layout) -> file
 
-A layout as TOML: `[domain]` (`L`, `nel`, `ni`, optionally `width` and `nely`), `[sides]`, `[defaults]`, `[options]`
-(nested tables), `[run]` and one `[[zone]]` table per zone (`name`, its shape as `shape = "polygon"` with `vertices`
-or `rings`, `"block"` with `lo`/`hi`, or `"ball"` with `centre`/`radius`, and its properties). A zone given by a
-Julia predicate (`Region`) cannot be written. The folder is not written: it is where the file is.
+Write `layout` to `file` as TOML, making its folder if needed:
+
+- `[domain]`: `L`, `nel`, `ni`, and `width` and `nely` when the layout is extruded;
+- `[sides]`, `[defaults]`, `[run]`, and `[options]` as nested tables;
+- one `[[zone]]` table per zone: its `name`, its shape (`shape = "polygon"` with `vertices`, or `rings` for several
+  outlines; `"block"` with `lo` and `hi`; `"ball"` with `centre` and `radius`) and its properties.
+
+The folder is not written: it is where the file is.
+
+# Throws
+- `ArgumentError`: when a zone is a [`Region`](@ref), a Julia function, which a file cannot hold.
+
+# Examples
+```jldoctest
+julia> l = Layout(; L=[10, 5], nel=[10, 5], zones=[Zone("base", Block([0, 0], [10, 2]); rho=2000)]);
+
+julia> file = save_layout(joinpath(mktempdir(), "model_layout.toml"), l);
+
+julia> load_layout(file).zones[1].props[:rho]
+2000.0
+```
+
+See also [`load_layout`](@ref).
 """
 function save_layout(file::AbstractString, l::Layout)
     dom = Dict{String,Any}("L" => l.L, "nel" => l.nel, "ni" => l.ni)
@@ -87,8 +150,16 @@ end
 """
     load_layout(file) -> Layout
 
-A layout read from its TOML file (`save_layout` writes the format); its `folder` is the file's. Tables a layout does
-not have (another program's file, e.g. an ElastoPlasm case file) are ignored, with a warning.
+Read a layout from its TOML file, in the format [`save_layout`](@ref) writes. Its `folder` is the file's folder.
+
+Tables a layout does not have, from another program's file (an ElastoPlasm case file, say), are ignored with a
+warning. A zone without a name is called `"zone i"`, by its position.
+
+# Throws
+- `ArgumentError`: when the file has no `[domain]` table, or a zone's `shape` is not `"polygon"`, `"block"` or
+  `"ball"`.
+
+See also [`draw`](@ref), which also takes a layout file.
 """
 function load_layout(file::AbstractString)
     d = TOML.parsefile(file)

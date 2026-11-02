@@ -1,11 +1,36 @@
 """
+    Field
+
+One entry of a [`Catalog`](@ref): a zone property, an option or a run setting, as the window shows it.
+
+# Fields
+- `key::String`: the key the value is stored under. An option's key starts with its section, the page it is shown
+  on: `"solver.method"`.
+- `kind::Symbol`: `:menu` (one of `values`), `:numeric` (any number, or a list of numbers when the default is one;
+  `values` are presets), `:integer` (a whole number) or `:list` (several of `values`).
+- `label::String`: what the window shows; the key by default.
+- `values::Vector{Any}`: a menu's or a list's choices; a number's presets.
+- `default::Any`: the value when none is set; `nothing` for none.
+- `scale::Float64`: for a zone property, the factor the window shows its value with (`1e-3` shows pascals as
+  kilopascals); the layout keeps the value as given.
+- `min::Union{Nothing,Float64}`: for an option or a run setting, the smallest number the window accepts.
+- `show_if::Dict{String,Vector{Any}}`: for a zone property or a run setting, show the field only while each of these
+  options or run settings has one of the listed values. Options are always listed.
+- `names::Vector{String}`: the names the window shows for `values`, one per value; none to show the values.
+
+# Constructors
     Field(key, kind=:numeric; label=key, values=[], default=nothing, scale=1, min=nothing, show_if=Dict(), names=[])
 
-One entry of a `Catalog`: a zone property, an option or a run setting, by `key` (an option's key has its section
-first, `"basis.which"`). `kind` is `:menu` (one of `values`), `:numeric` (any number, or list of numbers when the
-default is one; `values` are presets), `:integer`, or `:list` (several of `values`). The window shows a value times
-`scale` (e.g. 1e-3 for kPa) and the `names` of `values` when given; `min` bounds a number from below; `show_if`
-(`key => values`) shows the field only while that option or run setting has one of these values.
+# Throws
+- `ArgumentError`: when `kind` is not one of the four, or `names` does not have one name per value.
+
+# Examples
+```jldoctest
+julia> f = Field("eta"; label="η [Pa s]", default=1.0e21);
+
+julia> f.kind, f.label
+(:numeric, "η [Pa s]")
+```
 """
 struct Field
     key     :: String
@@ -29,16 +54,38 @@ function Field(key::AbstractString, kind::Symbol=:numeric; label=key, values=[],
 end
 
 """
-    Catalog(; zone=[], boundary=[], colors=[], side="", options=[], run=[])
-    Catalog(dict)
-    Catalog(file)
+    Catalog
 
-What a drawing window offers, from its host: the properties a zone may set (`zone`, `Field`s), the kinds of
-boundary each side may be (`boundary`, drawn in `colors`; `side` the default), the options (`options`, grouped
-into pages by the first part of their key) and the run settings (`run`). Empty by default: zones without
-properties, no boundaries and no options. A host may give it as plain data instead, a `Dict` shaped like the
-catalog's TOML (`read_catalog`), so that it builds no EasyDraw type, or as that TOML file (e.g. a solver's own);
-`draw` takes any of them.
+What the drawing window offers, given by its host program: the properties a zone may set, the boundary kinds, the
+options and the run settings. An empty catalog gives zones without properties, sides without a kind, and no Options
+step.
+
+# Fields
+- `zone::Vector{Field}`: the properties a zone may set.
+- `boundary::Vector{String}`: the kinds of boundary a side may be.
+- `colors::Vector{String}`: the colour each kind is drawn in (`"#4682b4"`), or none.
+- `side::String`: the default kind, the first one unless given.
+- `options::Vector{Field}`: the options, shown on pages by the first part of their keys.
+- `run::Vector{Field}`: the run settings.
+
+# Constructors
+    Catalog(; zone=[], boundary=[], colors=[], side="", options=[], run=[])
+    Catalog(dict)   # plain data shaped like the catalog's TOML (write_catalog), so a host builds no EasyDraw type
+    Catalog(file)   # that TOML file, as read_catalog
+
+# Throws
+- `ArgumentError`: when there are colours but not one per kind, or `side` is not one of the kinds.
+
+# Examples
+```jldoctest
+julia> c = Catalog(Dict("boundary" => Dict("kinds" => ["free slip", "no slip"]),
+                        "zone"     => [Dict("key" => "rho", "label" => "ρ [kg/m³]", "default" => 3300.0)]));
+
+julia> c.side, [f.key for f in c.zone]
+("free slip", ["rho"])
+```
+
+See also [`write_catalog`](@ref), [`draw`](@ref).
 """
 struct Catalog
     zone     :: Vector{Field}
@@ -79,11 +126,22 @@ function parse_numbers(s::AbstractString)
     return isempty(v) || any(isnothing, v) ? nothing : Float64.(v)
 end
 """
-    field_value(field, x) -> value
+    field_value(field::Field, x) -> value
 
-The value of `field` for `x`, a value or its label (text): one of its `values`; for a number field any number (or
-list of numbers, when its default is one), at least `min`, whole for `:integer`; for a `:list` a list of its values
-(or of their names). Throws an `ArgumentError` otherwise.
+The value of `field` for `x`, a value or the text the window got:
+
+- for a menu, one of its `values`;
+- for a number, any number (or a list of numbers, when its default is one), at least `min`, whole for `:integer`;
+- for a list, a list of its values (or of their names).
+
+# Throws
+- `ArgumentError`: when `x` is none of these.
+
+# Examples
+```jldoctest
+julia> EasyDraw.field_value(Field("nt", :integer; min=1), "250")
+250
+```
 """
 function field_value(f::Field, x)
     if f.kind == :list
@@ -130,11 +188,24 @@ function parse_field(d::AbstractDict)
 end
 """
     write_catalog(file, catalog) -> file
-    read_catalog(file) -> Catalog
 
-A catalog as TOML: `[boundary]` (`kinds`, `colors`, `default`) and a `[[zone]]`, `[[options]]` or `[[run]]` table per
-field (`key`, `kind`, `label`, `values`, `default`, `scale`, `min`, `show_if`, `names`; all but `key` optional). The same
-shape as a `Dict` is a catalog too (`Catalog(dict)`); `write_catalog` takes either.
+Write `catalog` (a [`Catalog`](@ref), or a `Dict` shaped like one) to `file` as TOML, making its folder if needed:
+
+- `[boundary]`: `kinds`, `colors` and `default`;
+- one `[[zone]]`, `[[options]]` or `[[run]]` table per field: `key`, `kind`, `label`, `values`, `default`, `scale`,
+  `min`, `show_if`, `names`, all but `key` optional when written by hand.
+
+# Examples
+```jldoctest
+julia> c = Catalog(; boundary=["free slip", "no slip"], zone=[Field("rho"; default=3300.0)]);
+
+julia> file = write_catalog(joinpath(mktempdir(), "catalog.toml"), c);
+
+julia> read_catalog(file).zone[1].default
+3300.0
+```
+
+See also [`read_catalog`](@ref).
 """
 function write_catalog(file::AbstractString, catalog)
     c = Catalog(catalog)
@@ -147,7 +218,7 @@ end
 """
     read_catalog(file) -> Catalog
 
-A catalog read from its TOML file (`write_catalog` writes the format); the same as `Catalog(file)`.
+Read a catalog from its TOML file, in the format [`write_catalog`](@ref) writes; the same as `Catalog(file)`.
 """
 function read_catalog(file::AbstractString)
     return Catalog(TOML.parsefile(file))

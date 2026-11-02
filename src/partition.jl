@@ -4,11 +4,19 @@
 """
     Partition
 
-A layout as disjoint regions (`partition`): `vertices` (`[x, z]`); `edges` (vertex index pairs, each once) with the
-region on each side, `left` and `right` of the edge's direction (a zone's index, 0 for the background, -1 outside the
-domain), and for an edge on the domain's boundary its `side` (`"left"`, `"right"`, `"bottom"`, `"top"`; `""` inside);
-and `regions`, the parts of each zone (or of the background, zone 0), each an outer outline (counterclockwise) and its
-holes (clockwise), as loops of vertex indices.
+A layout as disjoint regions, as [`partition`](@ref) makes it for a finite-element mesher. Neighbouring regions share
+their edges and vertices.
+
+# Fields
+- `vertices::Vector{Vector{Float64}}`: the `[x, z]` vertices.
+- `edges::Vector{Tuple{Int,Int}}`: each edge once, as a pair of vertex indices.
+- `left::Vector{Int}`, `right::Vector{Int}`: the region on each side of each edge, left and right of its direction:
+  a zone's index, 0 for the background, -1 outside the domain.
+- `side::Vector{String}`: for an edge on the domain's boundary, its side (`"left"`, `"right"`, `"bottom"`, `"top"`);
+  `""` inside.
+- `regions::Vector{@NamedTuple{zone::Int, outer::Vector{Int}, holes::Vector{Vector{Int}}}}`: each part of each zone (or
+  of the background, zone 0): its outer outline, counterclockwise, and its holes, clockwise, as loops of vertex
+  indices.
 """
 struct Partition
     vertices :: Vector{Vector{Float64}}
@@ -39,11 +47,32 @@ end
 """
     partition(layout; ngon=32, background=true) -> Partition
 
-The layout as disjoint regions, as a finite-element mesher needs it: each zone where it applies (a point belongs to
-the last zone containing it, so an overlap goes to the later zone), within the domain, and with `background` the rest
-of the domain as zone 0. Neighbouring regions share their edges and vertices exactly. A circle is an inscribed
-`ngon`-gon, for itself and for the zones it meets. Built from the arrangement of every zone's outline and of the
-domain's: a piece of edge is kept where the regions on its two sides differ.
+The layout as disjoint regions, as a finite-element mesher needs them:
+
+- each zone where it applies (where zones overlap, the later one wins), clipped to the domain;
+- with `background`, the rest of the domain as zone 0;
+- shared edges and vertices between neighbouring regions, so that a mesh of them is conforming.
+
+A circle is an inscribed `ngon`-gon, for itself and for the zones it meets.
+
+# Throws
+- `ArgumentError`: when a zone is a [`Region`](@ref) or a 3D shape.
+
+# Examples
+```jldoctest
+julia> l = Layout(; L=[10, 5], nel=[10, 5], zones=[Zone("base", Block([0, 0], [10, 2]); rho=2700),
+                                                   Zone("lens", Ball([5, 2], 1.0); rho=2100)]);
+
+julia> p = partition(l);
+
+julia> sort([r.zone for r in p.regions])
+3-element Vector{Int64}:
+ 0
+ 1
+ 2
+```
+
+See also [`write_geo`](@ref).
 """
 function partition(l::Layout; ngon::Integer=32, background::Bool=true)
     L = l.L
@@ -87,10 +116,20 @@ end
 """
     write_geo(file, layout; h, ngon=32, background=true) -> file
 
-The layout's `partition` as a Gmsh script: a `Point` per vertex (x–z as Gmsh's x–y; mesh size `h`, by default the
-layout's cell size), a `Line` per edge, shared by the regions on its two sides, a `Plane Surface` per region (its
-outer outline and its holes as `Curve Loop`s), a `Physical Surface` per zone name (the background's: "background")
-and a `Physical Curve` per side of the domain. Mesh it with `gmsh file -2`, or Gmsh.jl.
+Write the layout's [`partition`](@ref) as a Gmsh script, x–z as Gmsh's x–y, making its folder if needed:
+
+- a `Point` per vertex, with mesh size `h` (by default the layout's cell size);
+- a `Line` per edge, shared by the regions on its two sides;
+- a `Plane Surface` per region, its outer outline and its holes as `Curve Loop`s;
+- a `Physical Surface` per zone name, and one called `"background"`;
+- a `Physical Curve` per side of the domain: `"left"`, `"right"`, `"bottom"`, `"top"`.
+
+Mesh it with `gmsh file -2`, or with Gmsh.jl.
+
+# Examples
+```julia
+write_geo("model.geo", layout; h=0.5)
+```
 """
 function write_geo(file::AbstractString, l::Layout; h=minimum(l.L ./ l.nel), ngon::Integer=32, background::Bool=true)
     p = partition(l; ngon, background)

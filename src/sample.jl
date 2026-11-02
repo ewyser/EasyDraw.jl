@@ -5,8 +5,19 @@
     zone_at(layout, x) -> Int
     zone_at(zones, x) -> Int
 
-The zone of the point `x` (`(x, z)`, or `(x, y, z)` for an extruded layout): the index of the last zone containing
-it, 0 for none.
+The zone of the point `x`: the index of the last zone that contains it, or 0 when none does. `x` is `(x, z)`, or
+`(x, y, z)` for an extruded layout.
+
+# Examples
+```jldoctest
+julia> l = Layout(; L=[10, 5], nel=[10, 5], zones=[Zone("base", Block([0, 0], [10, 2]); rho=2700),
+                                                   Zone("lens", Ball([5, 2], 1.0); rho=2100)]);
+
+julia> zone_at(l, (5.0, 1.5)), zone_at(l, (1.0, 1.0)), zone_at(l, (1.0, 4.0))
+(2, 1, 0)
+```
+
+See also [`zone_index`](@ref), [`property`](@ref).
 """
 function zone_at(zones::AbstractVector{Zone}, x)
     return something(findlast(z -> inside(z.shape, x), zones), 0)
@@ -16,12 +27,13 @@ function zone_at(l::Layout, x)
 end
 
 """
-    subcell_centres(L, nel, ni) -> axes
+    subcell_centres(L, nel, ni) -> Vector{Vector{Float64}}
 
-The sub-cell centres of a domain `[0, L]` with `nel` cells per axis, `ni` per cell and axis, as one coordinate vector
-per axis (any dimension): the points `points` and the window's preview are made of. The range arithmetic is that of
-ElastoPlasm's material points (cell size `L/nel`, the last node `last(0:h:L)`), so that a preview and a simulation
-built from the same layout have the same points, to the bit.
+The centres of the sub-cells of a domain `[0, L]`, with `nel` cells per axis and `ni` sub-cells per cell and axis, as
+one coordinate vector per axis (any dimension): the points [`points`](@ref) and the window's preview are made of.
+
+The range arithmetic is ElastoPlasm's for its material points (cell size `L/nel`, the last node `last(0:h:L)`), so a
+preview and a simulation built from the same layout have the same points, to the bit.
 """
 function subcell_centres(L, nel, ni)
     return map(eachindex(L)) do d
@@ -33,8 +45,19 @@ end
 """
     zone_index(layout, xs, zs) -> Matrix{Int}
 
-The zone of every point `(xs[i], zs[j])` of a grid (`zone_at`): e.g. a finite-difference grid's cell centres,
-vertices, or a staggered grid's velocity points.
+The zone of every point `(xs[i], zs[j])` of a grid, as [`zone_at`](@ref) gives it: 0 where no zone holds the point.
+Use any coordinates: cell centres, vertices, or a staggered grid's velocity points.
+
+# Examples
+```jldoctest
+julia> l = Layout(; L=[10, 5], nel=[10, 5], zones=[Zone("base", Block([0, 0], [10, 2]); rho=2700),
+                                                   Zone("lens", Ball([5, 2], 1.0); rho=2100)]);
+
+julia> zone_index(l, [1.0, 5.0], [0.5, 1.5, 4.0])
+2×3 Matrix{Int64}:
+ 1  1  0
+ 1  2  0
+```
 """
 function zone_index(l::Layout, xs, zs)
     return [zone_at(l, (x, z)) for x ∈ xs, z ∈ zs]
@@ -43,8 +66,22 @@ end
 """
     property(layout, key, xs, zs; default) -> Matrix{Float64}
 
-The property `key` at every point `(xs[i], zs[j])` of a grid: its zone's value, or `default` (the layout's default
-of `key`, else `NaN`) where the zone does not set it or no zone holds the point.
+The property `key` at every point `(xs[i], zs[j])` of a grid: the value its zone sets, or `default` where the zone does
+not set it or no zone holds the point. `default` is the layout's default for `key` (`layout.defaults`), else `NaN`.
+
+# Throws
+- `ArgumentError`: when a zone sets `key` to something other than a number.
+
+# Examples
+```jldoctest
+julia> l = Layout(; L=[10, 5], nel=[10, 5], zones=[Zone("base", Block([0, 0], [10, 2]); rho=2700),
+                                                   Zone("lens", Ball([5, 2], 1.0); rho=2100)]);
+
+julia> property(l, "rho", [1.0, 5.0], [0.5, 2.5, 4.0]; default=1000.0)
+2×3 Matrix{Float64}:
+ 2700.0  1000.0  1000.0
+ 2700.0  2100.0  1000.0
+```
 """
 function property(l::Layout, key, xs, zs; default=get(l.defaults, string(key), NaN))
     vals = [get(z.props, Symbol(key), default) for z ∈ l.zones]
@@ -55,8 +92,19 @@ end
 """
     points(layout) -> (; x, z, zone)
 
-The points the zones hold: the sub-cell centres, `ni`×`ni` per cell (`ni = 1`: the cell centres), that lie in a
-zone, and the zone of each (`zone_at`); what the window previews.
+The points the zones hold: the centres of the `ni`×`ni` sub-cells of each cell (`ni = 1`: the cell centres) that lie in
+a zone, with the zone of each. These are the points the window previews, e.g. for markers or material points.
+
+# Examples
+```jldoctest
+julia> l = Layout(; L=[10, 5], nel=[10, 5], zones=[Zone("base", Block([0, 0], [10, 2]); rho=2700),
+                                                   Zone("lens", Ball([5, 2], 1.0); rho=2100)]);
+
+julia> p = points(l);
+
+julia> length(p.x), count(==(2), p.zone)
+(86, 12)
+```
 """
 function points(l::Layout)
     x, z, zone = drawn_points(l.L, l.nel, l.ni, [s.shape for s ∈ l.zones])

@@ -1,5 +1,8 @@
 # EasyDraw.jl
 
+[![Documentation](https://img.shields.io/badge/docs-dev-blue.svg)](https://ewyser.github.io/EasyDraw.jl/dev/)
+[![CI](https://github.com/ewyser/EasyDraw.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/ewyser/EasyDraw.jl/actions/workflows/CI.yml?query=branch%3Amain)
+
 EasyDraw lets you draw the zones of a 2D (x–z) model, by hand on a domain or over a scanned cross-section, and get
 them back as data for your solver:
 
@@ -8,6 +11,8 @@ them back as data for your solver:
 
 The same zones can be written in code instead of drawn. A point belongs to the **last** zone that contains it, so a
 zone drawn later overrides the ones below it.
+
+![The Zones step of the window: a slope over two layers, with a lens](docs/src/assets/step2.png)
 
 ## Install
 
@@ -20,172 +25,37 @@ EasyDraw is not registered yet:
 This installs the window too (Qt Quick, through QML.jl). `using EasyDraw` itself is instant: Qt loads with the first
 window of a session, which takes about 20 s (the next ones open at once). Julia 1.10 or later.
 
-## Draw
+## A first model
+
+Draw it:
 
 ```julia
 using EasyDraw
-l = draw()                          # an empty domain; returns a Layout, or nothing if cancelled
-l = draw("plume/plume_layout.toml") # edit a layout file
+l = draw()                          # a new domain; returns a Layout, or nothing if cancelled
 ```
 
-The window has four steps:
-
-1. **Domain:** its size and cell size, points per cell, the boundary kind of each side. You can also choose
-   *Picture to draw on*: load a picture, measure a scale bar on it, and the domain follows the picture.
-2. **Zones:** polygons, rectangles, triangles and circles, with their properties. A new zone is cut out of the
-   zones it overlaps. Clicks snap to vertices, edges and the grid.
-3. **Options:** only shown if your catalog has options (see below).
-4. **Run:** your run settings and the checks.
-
-**Create…** asks for a folder, writes the layout there as `<folder name>_layout.toml`, and returns it.
-
-## Or write it in code
+or write it:
 
 ```julia
-using EasyDraw
 l = Layout(; L=[100.0, 50.0], nel=[50, 25],                     # [0, 100] × [0, 50] m, 50 × 25 cells
              zones=[Zone("mantle", Block([0, 0], [100, 40]); rho=3300.0, eta=1e21),
                     Zone("plume",  Ball([50, 15], 8.0);       rho=3200.0, eta=1e19)])
-save_layout("plume.toml", l); l = load_layout("plume.toml")
+save_layout("plume_layout.toml", l)
+l = draw("plume_layout.toml")       # and edit it in the window
 ```
 
-The shapes are:
-
-- `Polygon(vertices)`: also several outlines, `Polygon(rings)`, for parts or holes (even–odd rule).
-- `Block(lo, hi)`: an axis-aligned box.
-- `Ball(centre, r)`: a disk.
-- `Region(x -> …)`: any predicate on a point. It works in code only, and cannot be written to a file.
-
-A zone's properties can have any name. Numbers are stored as `Float64`.
-
-## Finite differences: sample on your grid
+then use it:
 
 ```julia
-xc, zc = 1.0:2.0:99.0, 1.0:2.0:49.0           # e.g. the cell centres
-phase = zone_index(l, xc, zc)                 # the zone of each point, 0 where none
-rho   = property(l, "rho", xc, zc)            # a zone's value, else the layout's default, else NaN
-eta   = property(l, "eta", xc, zc; default=1e21)
-zone_at(l, (50.0, 15.0))                      # one point
-p = points(l)                                 # (; x, z, zone): ni × ni points per cell, e.g. markers
+rho = property(l, "rho", 1.0:2.0:99.0, 1.0:2.0:49.0)   # on your grid's cell centres
+write_geo("plume.geo", l)                              # or as regions for Gmsh
 ```
 
-Use any coordinates: cell centres, vertices, or a staggered grid's velocity points.
+## Documentation
 
-## Finite elements: regions for Gmsh
-
-```julia
-write_geo("plume.geo", l; h=1.0)              # then: gmsh plume.geo -2, or Gmsh.jl
-part = partition(l)                           # the same as data
-```
-
-The partition holds:
-
-- each zone where it applies: overlaps go to the later zone, and the zone is clipped to the domain;
-- the rest of the domain as the background (zone 0);
-- edges and vertices shared exactly by neighbouring regions, so the mesh is conforming.
-
-In the `.geo` file there is:
-
-- a `Physical Surface` per zone name, plus one called `"background"`;
-- a `Physical Curve` per side of the domain (`"left"`, `"right"`, `"bottom"`, `"top"`).
-
-Circles are inscribed 32-gons (`ngon`).
-
-`Partition` gives the vertices, the edges with the region on each side, and each region's outline and holes.
-
-## What the window offers: a catalog
-
-The window's zone properties, boundary kinds, options and run settings come from a catalog that your code passes.
-You can write it as TOML:
-
-```toml
-[boundary]
-kinds  = ["free slip", "no slip"]
-colors = ["#4682b4", "#b22222"]
-default = "free slip"
-
-[[zone]]
-key = "rho"
-label = "ρ [kg/m³]"
-default = 3300.0
-
-[[zone]]
-key = "eta"
-label = "η [Pa s]"
-default = 1.0e21
-
-[[options]]                                   # pages by the key's first part: "solver"
-key = "solver.method"
-kind = "menu"
-values = ["direct", "iterative"]
-default = "direct"
-
-[[run]]
-key = "nt"
-kind = "integer"
-label = "time steps"
-default = 1000
-min = 1
-```
-
-```julia
-l = draw(; catalog="catalog.toml")            # the file itself (or read_catalog("catalog.toml"))
-l.run["nt"]                                   # every run setting
-get(get(l.options, "solver", Dict()), "method", "direct")   # options: only those ticked, as overrides of the default
-```
-
-The field kinds are:
-
-- `menu`: one of `values`;
-- `numeric`: any number, or a list of numbers when the default is one; `values` are presets;
-- `integer`: a whole number;
-- `list`: several of `values`.
-
-Each field can also set:
-
-- `scale`: the factor the window shows a value with, e.g. `0.001` for kPa;
-- `min`: the smallest value accepted;
-- `show_if`: show the field only while another one has one of the listed values, e.g.
-  `show_if = { "solver.method" = ["iterative"] }`;
-- `names`: the names the window shows for `values`.
-
-A host can also give the catalog as plain data, a `Dict` shaped like this TOML (`Catalog(dict)`; `draw` takes
-a `Catalog`, a `Dict` or a file), so that its code builds no EasyDraw type. `write_catalog` writes either as TOML.
-
-In the window, **Load catalog…** (Domain step) loads another catalog file, e.g. your solver's, without restarting:
-
-- Nothing drawn is lost. Each zone keeps all its properties: those the new catalog lists are shown, the others are
-  carried through.
-- Option overrides and run settings that are still valid are kept. The old catalog's other ones are dropped.
-- A side whose boundary kind the new catalog lacks takes the new default.
-- Undo does not undo the load: load the previous catalog back instead.
-
-Your code can also pass functions for what a file cannot hold:
-
-- `check(layout)`: the checks on the Run step, as `(; errors, warnings, info)`;
-- `save(layout, folder)`: what **Create…** writes;
-- `load(file)`: what "Start from a file…" reads;
-- `title`: the window's title.
-
-ElastoPlasm.jl's `draw_case` is one such host: its `get_catalog()` lists its material constants and solver options.
-
-## With ElastoPlasm.jl
-
-The two packages share the shapes, the zones and the points, so a model moves between them without loss:
-
-```julia
-using ElastoPlasm
-case = slump_case([64.16, 16.04], [40, 10])
-save_layout("slump_layout.toml", case)       # a layout file, for EasyDraw alone (values in SI)
-write_geo("slump.geo", case)                 # a case works wherever EasyDraw takes a layout:
-p = points(case)                             #   its points are the simulation's material points, to the bit
-case = load_case("drawn_layout.toml")        # and back: a layout drawn with ElastoPlasm's catalog is a case
-```
-
-A layout drawn with EasyDraw alone becomes a case when it was drawn with ElastoPlasm's catalog:
-`write_catalog("elastoplasm_catalog.toml", get_catalog())`, then load that file in the window. Opened in EasyDraw
-directly, an ElastoPlasm case file (`*_case.toml`) loses its material, boundary conditions and solver options, and its
-friction angles stay in degrees: `load_layout` warns. Convert it with `save_layout(file, load_case(case_file))`.
+The [documentation](https://ewyser.github.io/EasyDraw.jl/dev/) has a guide to the window, step by step, and pages
+on layouts in code, sampling on a grid, meshing with Gmsh, catalogs (what your program offers in the window) and
+ElastoPlasm.jl, then the reference of every function.
 
 ## Limits
 
@@ -201,7 +71,6 @@ friction angles stay in degrees: `load_layout` warns. Convert it with `save_layo
 ```
 
 They cover the shapes, layouts and catalogs, sampling, the partition and its `.geo`, the editor driven as a user would
-(drawing, snapping, cutting, undo, the picture, options, run, Create…), and the window itself, offscreen (a PNG of each
-step: `draw(layout; shots=(dir, steps))` saves them and closes, also for documentation).
+(drawing, snapping, cutting, undo, the picture, options, run, Create…), and the window itself, offscreen.
 
 MIT license.
